@@ -3,12 +3,17 @@
 
 #define SHELLY_BUILTIN_LED 0
 
-void sendResponse(AsyncWebServerRequest *request, int statusCode, const String &content) {
-    AsyncWebServerResponse *response = request->beginResponse(statusCode, "application/json", content);
-    response->addHeader("Access-Control-Allow-Origin", "*");
-    response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
-    request->send(response);
+void sendResponse(ESP8266WebServer &server, int statusCode, const String &content) {
+  // Debug output
+  Serial.printf("[DEBUG] Sending response with status code %d, content: %s\n", statusCode, content.c_str());
+
+  // Set headers for CORS
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // Send the response
+  server.send(statusCode, "application/json", content);
 }
 
 // Function to flash the LED when connected

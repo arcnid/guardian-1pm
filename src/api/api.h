@@ -1,11 +1,12 @@
 #ifndef API_H
 #define API_H
 
-#include <ESPAsyncWebServer.h>
+#include <ESP8266WebServer.h>
 #include "../utils/utils.h"
 #include <ArduinoJson.h>
 
+
 //utility functions go here
-void setupApiRoutes(AsyncWebServer &server);
+void setupApiRoutes(ESP8266WebServer &server);
 
 #endif

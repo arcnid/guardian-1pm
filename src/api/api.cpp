@@ -4,54 +4,81 @@
 
 #define SHELLY_BUILTIN_LED 0
 
-void setupApiRoutes(AsyncWebServer &server) {
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        sendResponse(request, 200, "{\"status\":\"success\"}");
+// Wi-Fi scan results
+String scanResults;
+bool scanCompleted = false;
+
+
+
+
+void setupApiRoutes(ESP8266WebServer &server) {
+    server.on("/", HTTP_GET, [&server]() {
+        Serial.println("Hit /");
+        sendResponse(server, 200, "{\"status\":\"success\"}");
     });
 
-    server.on("/led/on", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on("/led/on", HTTP_GET, [&server]() {
         digitalWrite(SHELLY_BUILTIN_LED, LOW);
-        sendResponse(request, 200, "{\"status\":\"LED turned on\"}");
+        sendResponse(server, 200, "{\"status\":\"LED turned on\"}");
     });
 
-    server.on("/led/off", HTTP_GET, [](AsyncWebServerRequest *request) {
+    server.on("/led/off", HTTP_GET, [&server]() {
         digitalWrite(SHELLY_BUILTIN_LED, HIGH);
-        sendResponse(request, 200, "{\"status\":\"LED turned off\"}");
+        sendResponse(server, 200, "{\"status\":\"LED turned off\"}");
     });
 
-    server.on("/connect", HTTP_POST, [](AsyncWebServerRequest *request) {
-        StaticJsonDocument<256> doc; // Allocate memory for JSON parsing
-        String body;
-
-        // Check if the request has a body
-        if (request->hasParam("plain", true)) {
-            body = request->getParam("plain", true)->value();
-        } else {
-            sendResponse(request, 400, "{\"status\":\"Error\", \"message\":\"No JSON payload received\"}");
+    server.on("/scanWifi", HTTP_GET, [&server]() {
+        Serial.println("Starting Wi-Fi scan...");
+        
+        int n = WiFi.scanNetworks();
+        if (n == -1) {
+            sendResponse(server, 500, "{\"error\":\"Scan failed\"}");
             return;
         }
 
-        // Parse the JSON payload
-        DeserializationError error = deserializeJson(doc, body);
+        String jsonResponse = "{\"networks\":[";
+        for (int i = 0; i < n; i++) {
+            jsonResponse += "{\"ssid\":\"" + WiFi.SSID(i) +
+                            "\",\"rssi\":" + String(WiFi.RSSI(i)) +
+                            ",\"channel\":" + String(WiFi.channel(i)) + "}";
+            if (i < n - 1) jsonResponse += ",";
+        }
+        jsonResponse += "]}";
+
+        sendResponse(server, 200, jsonResponse);
+        Serial.println("Wi-Fi scan response sent");
+    });
+
+    server.on("/connect", HTTP_POST, [&server]() {
+        if (server.args() == 0) {
+            sendResponse(server, 400, "{\"status\":\"Error\", \"message\":\"Invalid request\"}");
+            return;
+        }
+
+        StaticJsonDocument<256> doc;
+        DeserializationError error = deserializeJson(doc, server.arg("plain"));
+
         if (error) {
-            sendResponse(request, 400, "{\"status\":\"Error\", \"message\":\"Invalid JSON payload\"}");
+            sendResponse(server, 400, "{\"status\":\"Error\", \"message\":\"Invalid JSON payload\"}");
             return;
         }
 
-        // Extract the "ssid" and "password" fields
         String ssid = doc["ssid"] | "";
         String password = doc["password"] | "";
 
-        // Validate the extracted values
         if (!ssid.isEmpty() && !password.isEmpty()) {
             if (connect(ssid, password)) {
                 WiFi.softAPdisconnect(true);
-                sendResponse(request, 200, "{\"status\":\"Success\", \"message\":\"Connected to Wi-Fi\"}");
+                sendResponse(server, 200, "{\"status\":\"Success\", \"message\":\"Connected to Wi-Fi\"}");
             } else {
-                sendResponse(request, 400, "{\"status\":\"Error\", \"message\":\"Failed to connect to Wi-Fi\"}");
+                sendResponse(server, 400, "{\"status\":\"Error\", \"message\":\"Failed to connect to Wi-Fi\"}");
             }
         } else {
-            sendResponse(request, 400, "{\"status\":\"Error\", \"message\":\"Missing 'ssid' or 'password'\"}");
+            sendResponse(server, 400, "{\"status\":\"Error\", \"message\":\"Missing 'ssid' or 'password'\"}");
         }
+    });
+
+    server.onNotFound([&server]() {
+        sendResponse(server, 404, "{\"status\":\"Error\", \"message\":\"Not Found\"}");
     });
 }

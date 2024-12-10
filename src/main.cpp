@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <ESPAsyncWebServer.h>
+#include <ESP8266WebServer.h>
 #include <api/api.h>
 #include <utils/utils.h>
 
 // Web server
-AsyncWebServer server(80);
+ESP8266WebServer server(80);
 
 
 // Pin definitions
@@ -21,6 +21,7 @@ const unsigned long printInterval = 5000;  // Interval to print the IP (in ms)
 
 void startAccessPoint(){
   //start the AP
+  WiFi.mode(WIFI_AP_STA);
   WiFi.softAP("Guardian_GMS_Relay", "");
 
 
@@ -50,7 +51,6 @@ void setup() {
  
 
   
-
   server.begin();
   Serial.println("Web Server Started");
 
@@ -76,7 +76,7 @@ void loop() {
   //start the wifi fallback ap 
 
 
-
+  server.handleClient();  
 }
 
 // Function to print the IP address
