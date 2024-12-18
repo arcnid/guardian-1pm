@@ -1,11 +1,16 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <EEPROM.h>
+#include <PubSubClient.h>
+
+
 #include <api/api.h>
 #include <utils/utils.h>
 
 // Web server
 ESP8266WebServer server(80);
+
 
 
 // Pin definitions
@@ -34,12 +39,18 @@ void startAccessPoint(){
 
 }
 
-
-
 void setup() {
   // Start the serial communication for debugging
+
+
   Serial.begin(115200);
   Serial.print("Firmware Started");
+
+  EEPROM.begin(512);
+
+
+  clearEEPROM();
+
   
 
   // Set the LED pin to output mode
@@ -47,34 +58,28 @@ void setup() {
 
   // Call the connect function
 
+  if(checkForWifiAndUser()){
+    //attempt to connect using EEPROm credentials
+    if(connect(storedConfig.ssid, storedConfig.password)){
+      Serial.println("Connected to WiFi successfully.");
+      digitalWrite(SHELLY_BUILTIN_LED, HIGH);
+    } else{
+      startAccessPoint();
+    }
+  } else{
+    Serial.println("No Creds Found, Wifi Started...");
+    startAccessPoint();
+  }
+
   setupApiRoutes(server);
  
-
-  
   server.begin();
   Serial.println("Web Server Started");
-
-
-  startAccessPoint();
+  
 }
 
 void loop() {
-  // If connected, keep flashing the LED
-  // if (WiFi.status() == WL_CONNECTED) {
-    
-
-  //   // Print the IP address at intervals
-  //   if (millis() - lastPrintTime >= printInterval) {
-  //     printIP();
-  //     lastPrintTime = millis();  // Update the last print time
-  //   }
-  // } else{
-  //   flashLED();
-  // }
-
-
-  //start the wifi fallback ap 
-
+ 
 
   server.handleClient();  
 }
