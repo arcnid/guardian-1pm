@@ -3,172 +3,151 @@
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <PubSubClient.h>
+#include <Wire.h>
 #include <time.h>
 
 // Include your custom headers
 #include "utils/utils.h"
-#include "api/api.h" // Ensure this path is correct based on your project structure
+#include "api/api.h"
 
 // Web server on port 80
 ESP8266WebServer server(80);
 
 // Timer variables
-unsigned long lastPublishTime = 0;            // Last time a message was published
-const unsigned long publishInterval = 30000;  // Interval to publish messages (in ms)
+unsigned long lastPublishTime = 0;
+const unsigned long publishInterval = 30000;
 
-// MQTT reconnection variables
-unsigned long lastReconnectAttempt = 5000; // 5 seconds
-
+unsigned long lastReconnectAttempt = 5000;
 const unsigned long reconnectInterval = 10000;
-// WiFi reconnection variables
+
 unsigned long lastWifiRetryAttempt = 0;
-const unsigned long wifiRetryInterval = 30000; // 30 seconds
+const unsigned long wifiRetryInterval = 30000;
 
-// Function to start Access Point
+
 void startAccessPoint() {
-  // Start the AP
   WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP("Guardian_GMS_Relay", "");
-
-  // Log out the IP that was assigned to the device
+  WiFi.softAP("Guardian_GMS_Sensor", "");
   Serial.print("Access point IP: ");
   Serial.println(WiFi.softAPIP());
-
-  // Turn LED on to indicate AP mode
   digitalWrite(SHELLY_BUILTIN_LED, LOW);
 }
 
 void synchronizeTime() {
   Serial.println("Synchronizing system time...");
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov"); // UTC Timezone
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 
   struct tm timeinfo;
-  // Wait for time synchronization
   while (!getLocalTime(&timeinfo)) {
-    Serial.println("Waiting for time synchronization...");
-    delay(1000);
+      Serial.println("Waiting for time synchronization...");
+      delay(1000);
   }
 
-  // Buffer to hold the formatted time string
   char timeStr[64];
-  // Format the time using strftime
   strftime(timeStr, sizeof(timeStr), "Current time: %A, %B %d %Y %H:%M:%S", &timeinfo);
-  // Print the formatted time
   Serial.println(timeStr);
 }
 
 void setup() {
-  // Start serial communication for debugging
   Serial.begin(115200);
+  while (!Serial) { ; }
   Serial.println("\nFirmware Started");
+  
 
-  // Initialize EEPROM
-  EEPROM.begin(512); // Adjust size as needed
+  EEPROM.begin(512);
 
-  // Optional: Clear EEPROM (Uncomment if needed)
-  // clearEEPROM();
-
-  // Set the LED pin to output mode and turn it off initially
   pinMode(SHELLY_BUILTIN_LED, OUTPUT);
-  digitalWrite(SHELLY_BUILTIN_LED, HIGH); // Ensure LED is off initially
+  digitalWrite(SHELLY_BUILTIN_LED, HIGH); 
+  initRelay();
 
-  // Check for stored WiFi credentials
+
   if (checkForWifiAndUser()) {
-    // Attempt to connect using EEPROM credentials
-    if (connect(String(storedConfig.ssid), String(storedConfig.password))) {
-      Serial.println("Connected to WiFi successfully.");
-      digitalWrite(SHELLY_BUILTIN_LED, HIGH); // Turn LED off after successful connection
-    } else {
-      Serial.println("WiFi connection failed, starting Access Point...");
+      if (connectToWiFi(String(storedConfig.ssid), String(storedConfig.password))) {
+          Serial.println("Connected to WiFi successfully.");
+          digitalWrite(SHELLY_BUILTIN_LED, HIGH);
+      } else {
+          Serial.println("WiFi connection failed, starting Access Point...");
+          startAccessPoint();
+      }
+  } else {
+      Serial.println("No Credentials Found, Starting Access Point...");
       startAccessPoint();
-    }
-  } else {
-    Serial.println("No Credentials Found, Starting Access Point...");
-    startAccessPoint();
   }
 
-  // Synchronize system time if connected
   if (WiFi.status() == WL_CONNECTED) {
-    synchronizeTime();
+      synchronizeTime();
   } else {
-    Serial.println("WiFi not connected. Unable to synchronize time.");
+      Serial.println("WiFi not connected. Unable to synchronize time.");
   }
 
-  // Initialize API routes
   setupApiRoutes(server);
-
-  // Start the Web Server
   server.begin();
   Serial.println("Web Server Started");
 
-  // Initialize MQTT only if user exists and WiFi is connected
   if (doesUserExist && WiFi.status() == WL_CONNECTED) {
-    if (connectToMQTT()) {
-      Serial.println("MQTT Connected Successfully.");
-    } else {
-      Serial.println("Failed to Connect to MQTT Broker.");
-    }
+      if (connectToMQTT()) {
+          Serial.println("MQTT Connected Successfully.");
+      } else {
+          Serial.println("Failed to Connect to MQTT Broker.");
+      }
   }
+
+  // Initialize I²C
 }
 
+
+
 void loop() {
-  // Handle incoming client requests
   server.handleClient();
+  unsigned long currentMillis = millis();
 
-  // If we have stored credentials (user exists) but WiFi is not connected, periodically attempt to reconnect
+  // WiFi Reconnect
   if (doesUserExist && (WiFi.status() != WL_CONNECTED)) {
-    unsigned long now = millis();
-    if (now - lastWifiRetryAttempt > wifiRetryInterval) {
-      lastWifiRetryAttempt = now;
-      Serial.println("Attempting to reconnect to WiFi...");
-      if (connect(String(storedConfig.ssid), String(storedConfig.password))) {
-        Serial.println("Reconnected to WiFi successfully.");
-        digitalWrite(SHELLY_BUILTIN_LED, HIGH); // Turn LED off
+      if (currentMillis - lastWifiRetryAttempt > wifiRetryInterval) {
+          lastWifiRetryAttempt = currentMillis;
+          Serial.println("Attempting to reconnect to WiFi...");
+          if (connectToWiFi(String(storedConfig.ssid), String(storedConfig.password))) {
+              Serial.println("Reconnected to WiFi successfully.");
+              // digitalWrite(SHELLY_BUILTIN_LED, HIGH);
+              synchronizeTime();
 
-        // Synchronize system time again after reconnecting
-        synchronizeTime();
-
-        // If MQTT is not connected, try connecting again
-        if (doesUserExist && !mqttClient.connected()) {
-          if (connectToMQTT()) {
-            Serial.println("MQTT Connected Successfully after WiFi reconnect.");
+              if (!mqttClient.connected()) {
+                  if (connectToMQTT()) {
+                      Serial.println("MQTT Connected Successfully after WiFi reconnect.");
+                  } else {
+                      Serial.println("Failed to Connect to MQTT Broker after WiFi reconnect.");
+                  }
+              }
           } else {
-            Serial.println("Failed to Connect to MQTT Broker after WiFi reconnect.");
+              Serial.println("WiFi reconnect attempt failed.");
           }
-        }
-      } else {
-        Serial.println("WiFi reconnect attempt failed.");
       }
-    }
   }
 
-  // If MQTT should be maintained and WiFi is connected
+  // MQTT Reconnect
   if (doesUserExist && (WiFi.status() == WL_CONNECTED)) {
-    // Ensure MQTT connection is maintained
-    if (!mqttClient.connected()) {
-      unsigned long now = millis();
-      if (now - lastReconnectAttempt > reconnectInterval) {
-        lastReconnectAttempt = now;
-        Serial.println("Reconnecting to MQTT Broker...");
-        if (connectToMQTT()) {
-          Serial.println("Reconnected to MQTT Broker.");
-        } else{
-          Serial.println("Failed to connect to broker");
-          delay(2000);
-        }
+      if (!mqttClient.connected()) {
+          if (currentMillis - lastReconnectAttempt > reconnectInterval) {
+              lastReconnectAttempt = currentMillis;
+              Serial.println("Reconnecting to MQTT Broker...");
+              if (connectToMQTT()) {
+                  Serial.println("Reconnected to MQTT Broker.");
+              } else {
+                  Serial.println("Failed to connect to broker");
+              }
+          }
       }
-    }
-    mqttClient.loop();
+      mqttClient.loop();
 
-    // Publish status message at defined intervals
-    unsigned long currentMillis = millis();
-    if (currentMillis - lastPublishTime >= publishInterval) {
-      lastPublishTime = currentMillis;
-      String status = "Device is online. IP: " + WiFi.localIP().toString();
-      publishMessage(mqtt_publish_topic, status.c_str());
-    }
+      static unsigned long lastAttempt = 0;
+      unsigned long now = millis();
+      if (now - lastAttempt >= 60000) { // Every 5 seconds
+          lastAttempt = now;
+          publishMessage(mqtt_publish_topic, "Hello from ESP8266");
+          // readShellyHTData();
+      }
+      delay(100);
+
+    
   }
-
-  // Optionally, log free heap memory
-  // Serial.printf("Free Heap: %u bytes\n", ESP.getFreeHeap());
+  
 }

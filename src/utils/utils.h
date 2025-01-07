@@ -36,7 +36,7 @@ extern bool doesUserExist;
 // Function Prototypes
 void sendResponse(ESP8266WebServer &server, int statusCode, const String &content);
 void flashLED();
-bool connect(const String& ssid, const String& password);
+bool connectToWiFi(const String& ssid, const String& password);
 bool saveUserAndWifiCreds(const String& ssid, const String& password, const String& uuid, const String& deviceId);
 bool checkForWifiAndUser();
 uint32_t calculateChecksum(const uint8_t* data, size_t length);
@@ -46,5 +46,14 @@ void clearEEPROM();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 bool connectToMQTT();
 void publishMessage(const char* topic, const char* message);
+String getUserId();
+String getDeviceId();
+String getTopic();
+void initRelay();
+void toggleRelay();
+void turnRelayOff();
+void turnRelayOn();
+
+
 
 #endif // UTILS_H
