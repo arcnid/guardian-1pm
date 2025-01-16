@@ -8,8 +8,8 @@
 // Constants
 #define MAX_SSID_LENGTH     32
 #define MAX_PASSWORD_LENGTH 64
-#define UUID_LENGTH         36
-#define DEVICEID_LENGTH     36
+#define UUID_LENGTH         37
+#define DEVICEID_LENGTH     37
 
 // Pin Definitions
 #define SHELLY_BUILTIN_LED 0
@@ -56,4 +56,4 @@ void turnRelayOn();
 
 
 
-#endif // UTILS_H
+#endif 

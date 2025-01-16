@@ -108,28 +108,28 @@ bool saveUserAndWifiCreds(const String& ssid, const String& password, const Stri
 
 // Check for WiFi and User Configuration in EEPROM
 bool checkForWifiAndUser() {
-// Read the Config struct from EEPROM
-for (size_t i = 0; i < sizeof(Config); ++i) {
-  *((uint8_t*)&storedConfig + i) = EEPROM.read(i);
-}
+  // Read the Config struct from EEPROM
+  for (size_t i = 0; i < sizeof(Config); ++i) {
+    *((uint8_t*)&storedConfig + i) = EEPROM.read(i);
+  }
 
-// Ensure null-termination for UUID and DeviceID
-storedConfig.uuid[UUID_LENGTH - 1] = '\0';
-storedConfig.deviceId[DEVICEID_LENGTH - 1] = '\0';
-storedConfig.ssid[MAX_SSID_LENGTH - 1] = '\0';
-storedConfig.password[MAX_PASSWORD_LENGTH - 1] = '\0';
+  // Ensure null-termination for UUID and DeviceID
+  storedConfig.uuid[UUID_LENGTH - 1] = '\0';
+  storedConfig.deviceId[DEVICEID_LENGTH - 1] = '\0';
+  storedConfig.ssid[MAX_SSID_LENGTH - 1] = '\0';
+  storedConfig.password[MAX_PASSWORD_LENGTH - 1] = '\0';
 
-// Calculate checksum of the read data
-uint32_t calculatedChecksum = calculateChecksum(reinterpret_cast<uint8_t*>(&storedConfig), sizeof(Config) - sizeof(uint32_t));
+  // Calculate checksum of the read data
+  uint32_t calculatedChecksum = calculateChecksum(reinterpret_cast<uint8_t*>(&storedConfig), sizeof(Config) - sizeof(uint32_t));
 
-// Verify checksum
-if (storedConfig.checksum == calculatedChecksum) {
+  // Verify checksum
+  if (storedConfig.checksum == calculatedChecksum) {
     // Check if all required fields are non-empty
     if (strlen(storedConfig.ssid) == 0 || strlen(storedConfig.password) == 0 ||
-        strlen(storedConfig.uuid) == 0 || strlen(storedConfig.deviceId) == 0) {
-        Serial.println("[EEPROM] Configuration found, but one or more fields are empty.");
-        doesUserExist = false;
-        return false;
+      strlen(storedConfig.uuid) == 0 || strlen(storedConfig.deviceId) == 0) {
+      Serial.println("[EEPROM] Configuration found, but one or more fields are empty.");
+      doesUserExist = false;
+      return false;
     }
 
     Serial.println("[EEPROM] Valid configuration found.");
@@ -139,11 +139,11 @@ if (storedConfig.checksum == calculatedChecksum) {
 
     doesUserExist = true;
     return true;
-} else {
+  } else {
     Serial.println("[EEPROM] Invalid or no configuration found.");
     doesUserExist = false;
     return false;
-}
+  }
 }
 
 // Send HTTP Response with CORS Headers
@@ -217,6 +217,11 @@ void clearEEPROM() {
   }
   EEPROM.commit();
   Serial.println("EEPROM cleared.");
+  ESP.restart();
+}
+
+void restart(){
+  ESP.restart();
 }
 
 // MQTT Callback Function to Handle Incoming Messages
@@ -255,6 +260,18 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
   } else {
     Serial.println("JSON does not contain 'power' key.");
+  }
+  if(doc.containsKey("command")){
+    String command = doc["command"];
+    Serial.println("commmand recieved");
+
+    if(command == "restart"){
+      restart();
+    } 
+    else if (command == "clearEEPROM"){
+      clearEEPROM();
+    }
+
   }
 }
 

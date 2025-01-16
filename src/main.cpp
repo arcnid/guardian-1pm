@@ -26,7 +26,7 @@ const unsigned long wifiRetryInterval = 30000;
 
 void startAccessPoint() {
   WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP("Guardian_GMS_Sensor", "");
+  WiFi.softAP("Guardian_GMS_Relay", "");
   Serial.print("Access point IP: ");
   Serial.println(WiFi.softAPIP());
   digitalWrite(SHELLY_BUILTIN_LED, LOW);
@@ -38,8 +38,8 @@ void synchronizeTime() {
 
   struct tm timeinfo;
   while (!getLocalTime(&timeinfo)) {
-      Serial.println("Waiting for time synchronization...");
-      delay(1000);
+    Serial.println("Waiting for time synchronization...");
+    delay(1000);
   }
 
   char timeStr[64];
@@ -55,9 +55,11 @@ void setup() {
 
   EEPROM.begin(512);
 
+
   pinMode(SHELLY_BUILTIN_LED, OUTPUT);
   digitalWrite(SHELLY_BUILTIN_LED, HIGH); 
   initRelay();
+
 
 
   if (checkForWifiAndUser()) {
