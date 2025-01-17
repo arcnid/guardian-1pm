@@ -17,19 +17,42 @@ Config storedConfig;
 bool relayState = false; // true = ON, false = OFF
 
 
-String getTopic(){
+String getPubTopic(){
   String userId = getUserId();
   String deviceId = getDeviceId();
 
-  String topic = "/gms/" + userId + "/" + deviceId;
+  Serial.println("Getting pub topic String");
+  Serial.println(userId);
+
+
+  String topic = "/toDaemon/" + userId + "/" + deviceId;
+
+  Serial.println(topic);
 
   return topic;
+
+}
+
+String getSubTopic(){
+  String userId = getUserId();
+  String deviceId = getDeviceId();
+
+  String topic = "/toDevice/" + userId + "/" + deviceId;
+
+  Serial.println("Getting sub topic String");
+  Serial.println(userId);
+
+  Serial.println(topic);
+
+
+  return topic;
+
 }
 
 
 
-const char* mqtt_publish_topic    = getTopic().c_str();
-const char* mqtt_subscribe_topic  = getTopic().c_str();
+const char* mqtt_publish_topic    = getPubTopic().c_str();
+const char* mqtt_subscribe_topic  = getSubTopic().c_str();
 
 // Initialize MQTT Client with a plain WiFiClient
 WiFiClient espClient;
@@ -282,7 +305,8 @@ bool connectToMQTT() {
   int randomSessionId = random(1, 201); // Random number from 1 to 200
 
   String clientId = "ESP8266Client-" + String(WiFi.macAddress()) + "-" + String(storedConfig.deviceId) + "-" + String(randomSessionId);
-  String topic = getTopic();
+  String pubTopic = getPubTopic().c_str();
+  String subTopic = getSubTopic().c_str();
 
   bool connected = mqttClient.connect(clientId.c_str());
 
@@ -291,12 +315,11 @@ bool connectToMQTT() {
 
   if (connected) {
     Serial.println("Connected to MQTT Broker.");
-    mqttClient.subscribe(topic.c_str());
+    mqttClient.subscribe(getSubTopic().c_str());
     Serial.print("Subscribed to topic: ");
-    Serial.println(topic);
-    Serial.println(topic.c_str());
+    Serial.println(getSubTopic().c_str());
 
-    mqttClient.publish(topic.c_str(), "ESP8266 Connected");
+    // mqttClient.publish(topic.c_str(), "ESP8266 Connected");
     return true;
   } else {
     Serial.print("Failed to connect to MQTT Broker, state: ");
