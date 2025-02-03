@@ -304,6 +304,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 bool connectToMQTT() {
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(512);
   int randomSessionId = random(1, 201); // Random number from 1 to 200
 
   String clientId = "ESP8266Client-" + String(WiFi.macAddress()) + "-" + String(storedConfig.deviceId) + "-" + String(randomSessionId);
@@ -313,7 +314,7 @@ bool connectToMQTT() {
   bool connected = mqttClient.connect(clientId.c_str());
 
   Serial.println("about to connect to mqtt broker with this topic");
-  Serial.println(mqtt_subscribe_topic);
+  Serial.println(getSubTopic().c_str());
 
   if (connected) {
     Serial.println("Connected to MQTT Broker.");
@@ -438,13 +439,27 @@ void turnRelayOff() {
 }
 
 void publishRelayStateupdate(const char* updateType){
- DynamicJsonDocument doc(256);
+
+  String userId = getUserId();
+  String deviceId = getDeviceId();
+
+  Serial.println("Publishing relay state update...");
+  Serial.print("User ID: ");
+  Serial.println(userId);
+  Serial.print("Device ID: ");
+  Serial.println(deviceId);
+
+
+  DynamicJsonDocument doc(512);
   doc["relay_update"] = true;
   doc["update_type"] = updateType;  // "init", "state_change", or "heartbeat"
   doc["relay_state"] = relayState;  // current state: true or false
   doc["device_type"] = "relay";
   doc["status"] = "online";
-  // Optionally add a timestamp (here using millis(), or use an NTP timestamp if available)
+  // Include the user and device IDs in the message.
+  doc["user_id"] = userId;
+  doc["device_id"] = deviceId;
+  // Optionally add a timestamp (using millis() here)
   doc["timestamp"] = millis();
 
   char buffer[256];
