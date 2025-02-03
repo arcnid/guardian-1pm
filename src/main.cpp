@@ -140,13 +140,11 @@ void loop() {
       }
       mqttClient.loop();
 
-      static unsigned long lastAttempt = 0;
-      unsigned long now = millis();
-      if (now - lastAttempt >= 60000) { // Every 5 seconds
-          lastAttempt = now;
-          publishMessage(mqtt_publish_topic, "Hello from ESP8266");
-          // readShellyHTData();
-      }
+        static unsigned long lastHeartbeat = 0;
+        if (currentMillis - lastHeartbeat >= 60000) {  // 60000 ms = 1 minute
+        lastHeartbeat = currentMillis;
+        publishRelayStateupdate("heartbeat");
+    }
       delay(100);
 
     

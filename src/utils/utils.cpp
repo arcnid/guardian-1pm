@@ -281,6 +281,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       turnRelayOff();
       Serial.println("Relay turned OFF via MQTT");
     }
+
+    publishRelayStateupdate("state_change");
   } else {
     Serial.println("JSON does not contain 'power' key.");
   }
@@ -318,6 +320,8 @@ bool connectToMQTT() {
     mqttClient.subscribe(getSubTopic().c_str());
     Serial.print("Subscribed to topic: ");
     Serial.println(getSubTopic().c_str());
+
+    publishRelayStateupdate("init");
 
     // mqttClient.publish(topic.c_str(), "ESP8266 Connected");
     return true;
@@ -431,4 +435,21 @@ void turnRelayOff() {
   relayState = false;
   digitalWrite(RELAY_CONTROL, LOW);
  
+}
+
+void publishRelayStateupdate(const char* updateType){
+ DynamicJsonDocument doc(256);
+  doc["relay_update"] = true;
+  doc["update_type"] = updateType;  // "init", "state_change", or "heartbeat"
+  doc["relay_state"] = relayState;  // current state: true or false
+  doc["device_type"] = "relay";
+  doc["status"] = "online";
+  // Optionally add a timestamp (here using millis(), or use an NTP timestamp if available)
+  doc["timestamp"] = millis();
+
+  char buffer[256];
+  serializeJson(doc, buffer, sizeof(buffer));
+  
+  // Use the dynamic topic based on stored user/device IDs.
+  publishMessage(getPubTopic().c_str(), buffer);
 }

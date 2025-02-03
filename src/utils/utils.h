@@ -53,6 +53,7 @@ void initRelay();
 void toggleRelay();
 void turnRelayOff();
 void turnRelayOn();
+void publishRelayStateupdate(const char* updateType);
 
 
 
